@@ -16,24 +16,19 @@ const LeafletRealtime = () => {
     const mapContainer = useRef(null);
     const mapInstance = useRef(null);
     const userMarker = useRef(null);
-    const radiusCircle = useRef(null);
+    const userRadiusCircle = useRef(null); // Blue circle for user's location
     const emergencyMarker = useRef(null);
+    const radiusCircle = useRef(null); // Red circle for emergency location
     const routingControl = useRef(null); // For the route
 
-    // State for emergency details and popup visibility
     const [emergency, setEmergency] = useState({
         visible: false,
         details: '',
         location: null, // { latitude, longitude }
     });
 
-    const [popupPosition, setPopupPosition] = useState('start'); // start -> center
-
     useEffect(() => {
-        if (!mapContainer.current) {
-            console.error('Map container not found!');
-            return;
-        }
+        if (!mapContainer.current) return;
 
         if (!mapInstance.current) {
             mapInstance.current = L.map(mapContainer.current).setView([0, 0], 16);
@@ -47,40 +42,32 @@ const LeafletRealtime = () => {
             const { latitude, longitude } = position.coords;
 
             if (!userMarker.current) {
+                // Create user marker
                 userMarker.current = L.marker([latitude, longitude], { title: 'Your Location' }).addTo(mapInstance.current);
 
-                radiusCircle.current = L.circle([latitude, longitude], {
+                // Add blue radius circle around user's location
+                userRadiusCircle.current = L.circle([latitude, longitude], {
+                    radius: 100, // 100 meters
                     color: 'blue',
-                    fillColor: '#4a90e2',
-                    fillOpacity: 0.5,
-                    radius: 100,
+                    fillColor: '#007bff',
+                    fillOpacity: 0.2,
                 }).addTo(mapInstance.current);
 
                 mapInstance.current.setView([latitude, longitude], 16);
             } else {
+                // Update marker and circle position
                 userMarker.current.setLatLng([latitude, longitude]);
-                radiusCircle.current.setLatLng([latitude, longitude]);
+                if (userRadiusCircle.current) {
+                    userRadiusCircle.current.setLatLng([latitude, longitude]);
+                }
             }
         };
 
-        const handleError = (error) => {
-            console.error('Error fetching location:', error);
-        };
-
-        const watchId = navigator.geolocation.watchPosition(updateLocation, handleError, {
-            enableHighAccuracy: true,
-            maximumAge: 0,
-            timeout: 10000,
+        const watchId = navigator.geolocation.watchPosition(updateLocation, () => {
+            console.error('Unable to fetch location');
         });
 
-        return () => {
-            navigator.geolocation.clearWatch(watchId);
-
-            if (mapInstance.current) {
-                mapInstance.current.remove();
-                mapInstance.current = null;
-            }
-        };
+        return () => navigator.geolocation.clearWatch(watchId);
     }, []);
 
     const showEmergencyOnMap = () => {
@@ -89,59 +76,53 @@ const LeafletRealtime = () => {
 
             // Add emergency marker
             if (!emergencyMarker.current) {
-                emergencyMarker.current = L.marker([latitude, longitude], {
-                    title: 'Emergency Location',
-                }).addTo(mapInstance.current);
+                emergencyMarker.current = L.marker([latitude, longitude]).addTo(mapInstance.current);
             } else {
                 emergencyMarker.current.setLatLng([latitude, longitude]);
             }
 
+            // Add a 100-meter red radius circle around the emergency location
+            if (!radiusCircle.current) {
+                radiusCircle.current = L.circle([latitude, longitude], {
+                    radius: 100, // 100 meters
+                    color: 'red',
+                    fillColor: '#f03',
+                    fillOpacity: 0.2,
+                }).addTo(mapInstance.current);
+            } else {
+                radiusCircle.current.setLatLng([latitude, longitude]);
+            }
+
+            // Remove existing route
+            if (routingControl.current) {
+                mapInstance.current.removeControl(routingControl.current);
+            }
+
+            // Add route without itinerary panel
+            routingControl.current = L.Routing.control({
+                waypoints: [
+                    userMarker.current.getLatLng(),
+                    L.latLng(latitude, longitude),
+                ],
+                lineOptions: {
+                    styles: [{ color: 'blue', weight: 5, opacity: 0.7 }],
+                },
+                addWaypoints: false,
+                show: false, // Hide default itinerary panel
+                createMarker: () => null, // Hide default markers
+            }).addTo(mapInstance.current);
+
+            // Programmatically hide any leftover route container DOM
+            setTimeout(() => {
+                const routingContainers = document.querySelectorAll('.leaflet-routing-container');
+                routingContainers.forEach((container) => (container.style.display = 'none'));
+            }, 100);
+
             // Center the map on the emergency location
             mapInstance.current.setView([latitude, longitude], 16);
-
-            // Add route from user location to the emergency
-            if (userMarker.current && emergency.location) {
-                const userLatLng = userMarker.current.getLatLng();
-
-                // Remove existing route
-                if (routingControl.current) {
-                    mapInstance.current.removeControl(routingControl.current);
-                }
-
-                // Add a new route without instructions
-                routingControl.current = L.Routing.control({
-                    waypoints: [
-                        L.latLng(userLatLng.lat, userLatLng.lng),
-                        L.latLng(latitude, longitude),
-                    ],
-                    routeWhileDragging: true,
-                    lineOptions: {
-                        styles: [
-                            { color: 'blue', opacity: 0.7, weight: 5 }, // Blue line style
-                        ],
-                    },
-                    addWaypoints: false, // Disable adding intermediate waypoints
-                    createMarker: () => null, // Do not show markers
-                    show: false, // Disable route summary UI
-                    itinerary: {
-                        container: null, // Suppress the default itinerary container
-                    },
-                }).addTo(mapInstance.current);
-
-                // Manually remove any existing itinerary DOM elements
-                if (routingControl.current._container) {
-                    const itineraryContainer = routingControl.current._container.querySelector(
-                        '.leaflet-routing-container'
-                    );
-                    if (itineraryContainer) {
-                        itineraryContainer.style.display = 'none'; // Hide itinerary pane
-                    }
-                }
-            }
         }
     };
 
-    // Simulate triggering an emergency (this would be replaced with real data/events)
     useEffect(() => {
         const timer = setTimeout(() => {
             setEmergency({
@@ -149,43 +130,36 @@ const LeafletRealtime = () => {
                 details: 'Fire reported near Main Street!',
                 location: { latitude: 7.0780, longitude: 125.6137 }, // Example coordinates
             });
-
-            // Start transition after the popup appears
-            setTimeout(() => setPopupPosition('center'), 500);
         }, 5000);
 
         return () => clearTimeout(timer);
     }, []);
 
     return (
-        <div
-            ref={mapContainer}
-            style={{
-                height: '100vh',
-                width: '100%',
-                position: 'relative',
-            }}
-        >
+        <div ref={mapContainer} style={{ height: '100vh', width: '100%', position: 'relative' }}>
             {emergency.visible && (
                 <div
                     style={{
                         position: 'absolute',
-                        top: popupPosition === 'start' ? '50%' : '20px',
-                        right: popupPosition === 'start' ? '20px' : '50%',
-                        transform: popupPosition === 'start' ? 'translateY(-50%)' : 'translateX(50%)',
+                        top: '20px', // 20px from the top edge
+                        left: '50%', // Center horizontally
+                        transform: 'translateX(-50%)', // Adjust for centering
                         backgroundColor: 'white',
                         padding: '10px',
                         boxShadow: '0px 4px 6px rgba(0,0,0,0.1)',
                         borderRadius: '5px',
                         zIndex: 1000,
-                        transition: 'top 0.5s ease, right 0.5s ease, transform 0.5s ease',
+                        textAlign: 'center', // Center align content
+                        width: '250px',
                     }}
                 >
-                    <h4>Emergency Alert</h4>
-                    <p>{emergency.details}</p>
+                    <h4 style={{ margin: '0 0 10px 0' }}>Emergency Alert</h4>
+                    <p style={{ margin: '0 0 10px 0' }}>{emergency.details}</p>
                     <button
                         onClick={showEmergencyOnMap}
                         style={{
+                            display: 'block',
+                            margin: '0 auto',
                             padding: '10px 20px',
                             backgroundColor: '#ff4d4d',
                             color: 'white',
@@ -194,7 +168,7 @@ const LeafletRealtime = () => {
                             cursor: 'pointer',
                         }}
                     >
-                        Click here to show on map
+                        Show on Map
                     </button>
                 </div>
             )}
