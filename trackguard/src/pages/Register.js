@@ -168,13 +168,17 @@ function Register() {
                     <th className="py-2 px-4 border-b border-gray-200 text-left text-sm font-semibold text-gray-600">
                       Phone Number
                     </th>
+                    <th className="py-2 px-4 border-b border-gray-200 text-left text-sm font-semibold text-gray-600">
+                      Email
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPeople.map((users, index) => (
                     <tr key={index}>
                       <td className="py-2 px-4 border-b border-gray-200">{`${users.firstName} ${users.lastName}`}</td>
-                      <td className="py-2 px-4 border-b border-gray-200">{users.phoneNumber}</td>
+                      <td className="py-2 px-4 border-b border-gray-200">{users.contactNumber}</td>
+                      <td className="py-2 px-4 border-b border-gray-200">{users.email}</td>
                     </tr>
                   ))}
                 </tbody>
