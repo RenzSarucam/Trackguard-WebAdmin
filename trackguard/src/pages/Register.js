@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { auth, db } from '../firebase'; // Import Firebase auth and Realtime Database
-import { ref, onValue } from 'firebase/database'; // Import Realtime Database functions
+import { auth, firestoreDb } from '../firebase'; // Import Firebase auth and Firestore
+import { collection, getDocs } from 'firebase/firestore'; // Import Firestore functions
 import dashboard from '../assets/dashboard.png';
 import logout from '../assets/logout.png';
 import question from '../assets/question.png';
 import report from '../assets/report.png';
 import log from '../assets/log.png';
-
 
 function Register() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -15,36 +14,38 @@ function Register() {
   const [registeredPeople, setRegisteredPeople] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Fetch data from Firestore
+  const fetchPeople = async () => {
+    try {
+      const usersCollection = collection(firestoreDb, 'users'); // Use firestoreDb instead of db
+      const usersSnapshot = await getDocs(usersCollection); // Fetch documents
+      const usersList = usersSnapshot.docs.map((doc) => doc.data()); // Map documents to data
+      setRegisteredPeople(usersList);
+    } catch (error) {
+      console.error('Error fetching people:', error);
+      if (error.code === 'permission-denied') {
+        alert('Error: Missing or insufficient permissions to access Firestore. Please check your security rules.');
+      } else {
+        alert('An error occurred while fetching data.');
+      }
+    }
+  };
+
+  // UseEffect to authenticate and fetch data
   useEffect(() => {
     const currentUser = auth.currentUser;
     if (currentUser) {
-      setEmail('ADMIN' || 'ADMIN'); // Set user email or default to 'ADMIN'
-
-      const fetchPeople = () => {
-        const usersRef = ref(db, 'users');
-        onValue(usersRef, (snapshot) => {
-          const data = snapshot.val();
-          if (data) {
-            const usersList = Object.values(data);
-            setRegisteredPeople(usersList);
-          } else {
-            setRegisteredPeople([]);
-          }
-        }, (error) => {
-          console.error('Error fetching people:', error);
-          alert('Error: Missing or insufficient permissions to access Realtime Database.');
-        });
-      };
-
-      fetchPeople();
+      setEmail(currentUser.email || 'ADMIN'); // Set user email or default to 'ADMIN'
+      fetchPeople(); // Fetch data from Firestore
     } else {
       alert('User not authenticated.');
-      // Optionally, you can redirect to the login page
+      // Optionally, redirect to the login page
       // navigate('/login');
     }
   }, []);
 
-  const filteredPeople = registeredPeople.filter(person =>
+  // Filter people based on the search query
+  const filteredPeople = registeredPeople.filter((person) =>
     `${person.firstName} ${person.lastName}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -131,7 +132,6 @@ function Register() {
               <img src={logout} alt="Logout" className="mr-2 w-8 h-8" />
               Logout
             </Link>
-            
           </div>
         </aside>
       )}
@@ -162,8 +162,12 @@ function Register() {
               <table className="min-w-full bg-white">
                 <thead>
                   <tr>
-                    <th className="py-2 px-4 border-b border-gray-200 text-left text-sm font-semibold text-gray-600">Name</th>
-                    <th className="py-2 px-4 border-b border-gray-200 text-left text-sm font-semibold text-gray-600">Phone Number</th>
+                    <th className="py-2 px-4 border-b border-gray-200 text-left text-sm font-semibold text-gray-600">
+                      Name
+                    </th>
+                    <th className="py-2 px-4 border-b border-gray-200 text-left text-sm font-semibold text-gray-600">
+                      Phone Number
+                    </th>
                   </tr>
                 </thead>
                 <tbody>

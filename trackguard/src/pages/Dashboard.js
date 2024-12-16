@@ -10,7 +10,7 @@ import LeafletMap from '../components/LeafletMap'; // Import the map component
 
 function Dashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [email, setEmail] = useState(''); // Define `email` state
+  const [, setEmail] = useState(''); // Define `email` state
 
   useEffect(() => {
     // Fetch the current user from Firebase
