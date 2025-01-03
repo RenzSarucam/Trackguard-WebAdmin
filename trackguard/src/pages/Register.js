@@ -10,7 +10,7 @@ import log from '../assets/log.png';
 
 function Register() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [email, setEmail] = useState('');
+  const [, setEmail] = useState('');
   const [registeredPeople, setRegisteredPeople] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -61,7 +61,7 @@ function Register() {
           {/* User Profile */}
           <div className="flex items-center justify-center p-4 border-b border-gray-700">
             <div>
-              <h2 className="text-xl font-bold">{email}</h2> {/* Display the email */}
+              <h2 className="text-xl font-bold">ADMIN</h2> {/* Display the email */}
             </div>
           </div>
 

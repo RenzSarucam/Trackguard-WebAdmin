@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, onValue } from 'firebase/database';
 
 // Fix for missing default icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -11,6 +13,21 @@ L.Icon.Default.mergeOptions({
     iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
+
+// Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyBn9m8VH43GFrlIHN1dgBmlY-3BgdwjCDs",
+    authDomain: "track-guard.firebaseapp.com",
+    databaseURL: "https://track-guard-default-rtdb.firebaseio.com",
+    projectId: "track-guard",
+    storageBucket: "track-guard.appspot.com",
+    messagingSenderId: "1024269638309",
+    appId: "1:1024269638309:web:6aea15e6899d7ea5388b4c",
+};
+
+// Initialize Firebase app
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
 
 const LeafletRealtime = () => {
     const mapContainer = useRef(null);
@@ -26,6 +43,9 @@ const LeafletRealtime = () => {
         details: '',
         location: null, // { latitude, longitude }
     });
+
+    // Preload emergency alarm sound
+    const alarmSound = useRef(new Audio('../assets/emergency-alarm.mp3')); // Replace with the path to your alarm sound
 
     useEffect(() => {
         if (!mapContainer.current) return;
@@ -70,6 +90,32 @@ const LeafletRealtime = () => {
         return () => navigator.geolocation.clearWatch(watchId);
     }, []);
 
+    useEffect(() => {
+        const emergencyRef = ref(database, 'gps_data'); // Reference to gps_data in Realtime Database
+
+        // Listen for changes in the gps_data node
+        const unsubscribe = onValue(emergencyRef, (snapshot) => {
+            const data = snapshot.val();
+            console.log('Fetched GPS Data:', data); // Debugging log
+
+            if (data && data.latitude && data.longitude) {
+                setEmergency({
+                    visible: true,
+                    details: 'Emergency reported!', // Add custom details if needed
+                    location: { latitude: data.latitude, longitude: data.longitude },
+                });
+
+                // Play the alarm sound
+                alarmSound.current.play().catch((error) => {
+                    console.error('Error playing alarm sound:', error);
+                });
+            }
+        });
+
+        // Cleanup listener when the component unmounts
+        return () => unsubscribe();
+    }, []);
+
     const showEmergencyOnMap = () => {
         if (emergency.location && mapInstance.current) {
             const { latitude, longitude } = emergency.location;
@@ -108,11 +154,12 @@ const LeafletRealtime = () => {
                     styles: [{ color: 'blue', weight: 5, opacity: 0.7 }],
                 },
                 addWaypoints: false,
-                show: false, // Hide default itinerary panel
+                routeWhileDragging: false,
+                show: false, // Hide the default itinerary panel
                 createMarker: () => null, // Hide default markers
             }).addTo(mapInstance.current);
 
-            // Programmatically hide any leftover route container DOM
+            // Hide leftover route container DOM manually (just in case)
             setTimeout(() => {
                 const routingContainers = document.querySelectorAll('.leaflet-routing-container');
                 routingContainers.forEach((container) => (container.style.display = 'none'));
@@ -122,18 +169,6 @@ const LeafletRealtime = () => {
             mapInstance.current.setView([latitude, longitude], 16);
         }
     };
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setEmergency({
-                visible: true,
-                details: 'Fire reported near Main Street!',
-                location: { latitude: 7.0780, longitude: 125.6137 }, // Example coordinates
-            });
-        }, 5000);
-
-        return () => clearTimeout(timer);
-    }, []);
 
     return (
         <div ref={mapContainer} style={{ height: '100vh', width: '100%', position: 'relative' }}>
