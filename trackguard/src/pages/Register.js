@@ -14,34 +14,61 @@ function Register() {
   const [registeredPeople, setRegisteredPeople] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch data from Firestore
+  // Updated Fetch data from Firestore
   const fetchPeople = async () => {
     try {
-      const usersCollection = collection(firestoreDb, 'users'); // Use firestoreDb instead of db
-      const usersSnapshot = await getDocs(usersCollection); // Fetch documents
-      const usersList = usersSnapshot.docs.map((doc) => doc.data()); // Map documents to data
+      console.log("Fetching data...");
+      console.log("Current user:", auth.currentUser); // Debug log
+
+      if (!auth.currentUser) {
+        throw new Error('User not authenticated');
+      }
+
+      const usersCollection = collection(firestoreDb, 'users'); // Try 'users' instead of 'registrations'
+      console.log("Attempting to fetch from collection:", usersCollection); // Debug log
+      
+      const usersSnapshot = await getDocs(usersCollection);
+      console.log("Data received:", usersSnapshot.docs.length, "documents"); // Debug log
+      
+      const usersList = usersSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        console.log("Document data:", data); // Debug log
+        return {
+          id: doc.id,
+          ...data
+        };
+      });
+      
+      console.log("Processed data:", usersList); // Debug log
       setRegisteredPeople(usersList);
     } catch (error) {
-      console.error('Error fetching people:', error);
+      console.error('Detailed error:', error); // More detailed error logging
       if (error.code === 'permission-denied') {
-        alert('Error: Missing or insufficient permissions to access Firestore. Please check your security rules.');
+        alert('Access denied. Please check your permissions.');
       } else {
-        alert('An error occurred while fetching data.');
+        alert('Error fetching data: ' + error.message);
       }
     }
   };
 
+  // Add a debug useEffect to monitor registeredPeople
+  useEffect(() => {
+    console.log("registeredPeople updated:", registeredPeople);
+  }, [registeredPeople]);
+
   // UseEffect to authenticate and fetch data
   useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      setEmail(currentUser.email || 'ADMIN'); // Set user email or default to 'ADMIN'
-      fetchPeople(); // Fetch data from Firestore
-    } else {
-      alert('User not authenticated.');
-      // Optionally, redirect to the login page
-      // navigate('/login');
-    }
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setEmail(user.email || 'ADMIN');
+        fetchPeople();
+      } else {
+        // Redirect to login if not authenticated
+        window.location.href = '/login';
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Filter people based on the search query
@@ -171,14 +198,20 @@ function Register() {
                     <th className="py-2 px-4 border-b border-gray-200 text-left text-sm font-semibold text-gray-600">
                       Email
                     </th>
+                    <th className="py-2 px-4 border-b border-gray-200 text-left text-sm font-semibold text-gray-600">
+                      Address
+                    </th>
+                    
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredPeople.map((users, index) => (
-                    <tr key={index}>
-                      <td className="py-2 px-4 border-b border-gray-200">{`${users.firstName} ${users.lastName}`}</td>
-                      <td className="py-2 px-4 border-b border-gray-200">{users.contactNumber}</td>
-                      <td className="py-2 px-4 border-b border-gray-200">{users.email}</td>
+                  {filteredPeople.map((user, index) => (
+                    <tr key={user.id || index}>
+                      <td className="py-2 px-4 border-b border-gray-200">{`${user.firstName} ${user.lastName}`}</td>
+                      <td className="py-2 px-4 border-b border-gray-200">{user.contactNumber}</td>
+                      <td className="py-2 px-4 border-b border-gray-200">{user.email}</td>
+                      <td className="py-2 px-4 border-b border-gray-200">{user.address}</td>
+                      
                     </tr>
                   ))}
                 </tbody>
